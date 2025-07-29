@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# Pliki konfiguracyjne i wrażliwe
+config.ini
+*.log
+*.lock
+
+# Systemowe
+.DS_Store
