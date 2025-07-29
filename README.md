@@ -2,11 +2,13 @@
 
 Projekt `ceidg-hurtownia` to potok danych (data pipeline) służący do pobierania, wzbogacania i przechowywania danych o firmach z publicznego API CEIDG. Aplikacja wykorzystuje architekturę producent-konsument do efektywnego zarządzania limitami zapytań API.
 
+Link do dokumentu : https://www.icloud.com/pages/015wyA_rYr_RgFbPI3gv-L_Uw#Hurtownia_CEIDG
+
 ## Instalacja
 
 1.  Sklonuj repozytorium:
     ```bash
-    git clone [https://github.com/twoja-nazwa/ceidg-hurtownia.git](https://github.com/twoja-nazwa/ceidg-hurtownia.git)
+    git clone git@github.com:michalbajdek/ceidg-hurtownia.git
     cd ceidg-hurtownia
     ```
 
