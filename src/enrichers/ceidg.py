@@ -5,12 +5,11 @@ import sys
 import time
 from datetime import datetime
 import requests
-import mysql.connector
-# Zmieniony import
-from ..config import db_config, JWT_TOKEN
 
-LOG_FILE = os.path.join(os.path.dirname(__file__), 'enricher.log')
-# Reszta kodu jest identyczna jak w poprzedniej odpowiedzi...
+from ..db_connector import get_db_connection
+from ..config import JWT_TOKEN
+
+LOG_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'enricher.log')
 LOCK_FILE = os.path.join(os.path.dirname(__file__), 'enricher.lock')
 SLEEP_INTERVAL = 3.6
 RECORDS_TO_FETCH_PER_BATCH = 10
@@ -18,36 +17,34 @@ API_DETAIL_URL_TEMPLATE = 'https://dane.biznes.gov.pl/api/ceidg/v2/firma/{ceidg_
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - ENRICHER - %(levelname)s - %(message)s', handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler(sys.stdout)])
 
-def get_db_connection():
-    try:
-        return mysql.connector.connect(**db_config)
-    except mysql.connector.Error as err:
-        logging.error(f"Błąd połączenia z bazą MySQL: {err}")
-        return None
-
 def to_json_or_null(data):
     if not data: return None
     return json.dumps(data, ensure_ascii=False)
 
 def main():
-    logging.info("--- Uruchomiono KOMPLETNY skrypt wzbogacający ---")
+    logging.info("--- Uruchomiono skrypt wzbogacający ---")
     conn = get_db_connection()
     if not conn: return
+    
     cursor = conn.cursor(dictionary=True)
+    
     while True:
         try:
             cursor.execute("SELECT ceidg_id FROM companies WHERE wzbogacono_dnia IS NULL LIMIT %s", (RECORDS_TO_FETCH_PER_BATCH,))
             records_to_process = cursor.fetchall()
+            
             if not records_to_process:
                 logging.info("Brak nowych rekordów do wzbogacenia. Czekam 1 minutę.")
                 time.sleep(60)
                 continue
+                
             logging.info(f"Pobrano {len(records_to_process)} rekordów do wzbogacenia.")
             for record in records_to_process:
                 ceidg_id = record['ceidg_id']
                 logging.info(f"Wzbogacam rekord o ID: {ceidg_id}")
                 api_url = API_DETAIL_URL_TEMPLATE.format(ceidg_id=ceidg_id)
                 headers = {'Authorization': f'Bearer {JWT_TOKEN}'}
+                
                 try:
                     response = requests.get(api_url, headers=headers, timeout=20)
                     if response.status_code == 404:
@@ -59,6 +56,7 @@ def main():
                         logging.warning("Kod 429 - przekroczono limit. Czekam 180 sekund.")
                         time.sleep(180)
                         break
+                        
                     response.raise_for_status()
                     details = response.json().get('firma', [{}])[0]
                     wlasciciel = details.get('wlasciciel', {})
@@ -70,16 +68,16 @@ def main():
                 except requests.exceptions.RequestException as e:
                     logging.error(f"Błąd zapytania do API dla ID {ceidg_id}: {e}")
                 time.sleep(SLEEP_INTERVAL)
-        except mysql.connector.Error as err:
-            logging.error(f"Błąd bazy danych: {err}. Próbuję połączyć ponownie.")
-            time.sleep(60)
+                
+        except Exception as e:
+            logging.error(f"Nieoczekiwany błąd: {e}", exc_info=True)
             conn.close()
+            logging.info("Próbuję połączyć ponownie za 10s...")
+            time.sleep(10)
             conn = get_db_connection()
             if conn: cursor = conn.cursor(dictionary=True)
             else: break
-        except Exception as e:
-            logging.error(f"Nieoczekiwany błąd: {e}", exc_info=True)
-            time.sleep(10)
+            
     if conn and conn.is_connected(): conn.close()
 
 if __name__ == "__main__":
@@ -92,4 +90,4 @@ if __name__ == "__main__":
     finally:
         if os.path.exists(LOCK_FILE):
             os.remove(LOCK_FILE)
-            logging.info("Plik blokady usunięty.")
+            logging.info("Plik blokady enrichera usunięty.")

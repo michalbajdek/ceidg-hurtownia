@@ -4,6 +4,7 @@ user = USER_BAZY_DANYCH
 password = HASLO_DO_BAZY_DANYCH
 database = NAZWA_BAZY_DANYCH
 port = 25060
+ssl_ca_path = ca-certificate.crt
 
 [api]
 jwt_token = TWOJ_WAZNY_TOKEN_JWT
