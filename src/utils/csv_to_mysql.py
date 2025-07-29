@@ -3,11 +3,13 @@ import logging
 import sys
 from tqdm import tqdm
 
-# Importujemy tylko funkcję do łączenia z bazą
 from ..db_connector import get_db_connection
 
 # Nazwa pliku CSV do zaimportowania
 CSV_FILE_NAME = 'example.csv'
+
+# ROZMIAR PARTII: Co tyle rekordów będziemy zapisywać zmiany w bazie.
+BATCH_SIZE = 2000
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - CSV_IMPORTER - %(levelname)s - %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 
@@ -20,6 +22,7 @@ def main():
         return
         
     cursor = conn.cursor()
+    record_counter = 0
     
     try:
         with open(CSV_FILE_NAME, mode='r', encoding='utf-8') as csvfile:
@@ -34,14 +37,23 @@ def main():
                 data_rozp = row['data_rozpoczecia'] if row['data_rozpoczecia'] else None
                 values = (row['ceidg_id'], row['nazwa'], row['status_dzialalnosci'], data_rozp, row['nip'], row['regon'])
                 cursor.execute(insert_query, values)
+                record_counter += 1
+                
+                # --- NOWA LOGIKA: ZATWIERDZANIE PARTIAMI ---
+                if record_counter % BATCH_SIZE == 0:
+                    conn.commit()
+                    logging.info(f" -> Zatwierdzono partię {BATCH_SIZE} rekordów. Łącznie: {record_counter}")
             
+            # --- Zawsze zatwierdź ostatnią, niepełną partię na końcu ---
             conn.commit()
-            logging.info(f"Import zakończony! Przetworzono {cursor.rowcount} rekordów.")
+            logging.info(f" -> Zatwierdzono ostatnią partię. Całkowita liczba przetworzonych rekordów: {record_counter}")
+            logging.info("Import zakończony pomyślnie!")
 
     except FileNotFoundError:
-        logging.error(f"BŁĄD: Nie znaleziono pliku '{CSV_FILE_NAME}'. Upewnij się, że znajduje się w głównym folderze projektu.")
+        logging.error(f"BŁĄD: Nie znaleziono pliku '{CSV_FILE_NAME}'.")
     except Exception as e:
         logging.error(f"Wystąpił nieoczekiwany błąd: {e}")
+        conn.rollback() # W razie błędu, wycofaj bieżącą partię
     finally:
         if conn.is_connected():
             cursor.close()
