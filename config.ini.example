@@ -1,0 +1,9 @@
+[database]
+host = HOST_TWOJEJ_BAZY_DANYCH
+user = USER_BAZY_DANYCH
+password = HASLO_DO_BAZY_DANYCH
+database = NAZWA_BAZY_DANYCH
+port = 25060
+
+[api]
+jwt_token = TWOJ_WAZNY_TOKEN_JWT
